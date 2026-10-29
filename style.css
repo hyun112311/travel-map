@@ -661,6 +661,186 @@ body {
   border-bottom: 1px solid var(--border-color);
 }
 
+/* Budget Summary Widget */
+.budget-summary-widget {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.budget-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.budget-summary-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.budget-total-amount {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.budget-cat-bars {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.budget-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: white;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+/* Transit Mode Selector */
+.transit-mode-selector {
+  padding: 8px 16px;
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.transit-mode-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.transit-chip {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  background-color: #f8fafc;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.transit-chip.active {
+  background-color: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* Timeline Route Connector (스팟 사이 이동 구간) */
+.timeline-route-connector {
+  margin: -4px 0 -4px 34px;
+  padding: 6px 10px;
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  position: relative;
+  z-index: 2;
+  font-size: 11px;
+}
+
+.route-info-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.route-distance-chip {
+  font-weight: 700;
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.route-time-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.route-time-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.route-time-badge.car { background-color: #eff6ff; color: #1d4ed8; }
+.route-time-badge.transit { background-color: #f0fdf4; color: #15803d; }
+.route-time-badge.walk { background-color: #fefce8; color: #a16207; }
+
+.btn-open-directions {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  color: #2563eb;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  background-color: white;
+}
+
+.btn-open-directions:hover {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+}
+
+/* Marker Popup Directions Button */
+.btn-directions-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: #2563eb;
+  color: white !important;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  width: 100%;
+  margin-top: 6px;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+}
+
+.btn-directions-link:hover {
+  background-color: #1d4ed8;
+}
+
 .spots-timeline-list {
   padding: 14px;
   display: flex;

@@ -175,9 +175,28 @@
 
           <!-- 해당 Day의 스팟 타임라인 리스트 -->
           <div class="trip-spots-timeline-container">
+            <!-- Day 요약 & 가계부/예산 위젯 -->
             <div class="day-summary-banner" id="day-summary-banner">
               <span id="current-day-label">Day 1</span>
               <span class="day-spots-count" id="current-day-spots-count">0개 장소</span>
+            </div>
+
+            <!-- 가계부/지출 요약 카드 -->
+            <div class="budget-summary-widget" id="budget-summary-widget">
+              <div class="budget-summary-header">
+                <span class="budget-summary-title"><i class="fa-solid fa-wallet"></i> 지출 합계</span>
+                <span class="budget-total-amount" id="budget-total-amount">0원</span>
+              </div>
+              <div class="budget-cat-bars" id="budget-cat-bars"></div>
+            </div>
+
+            <!-- 이동 수단 필터 선택 칩 -->
+            <div class="transit-mode-selector">
+              <span class="transit-mode-label"><i class="fa-solid fa-route"></i> 이동 시간:</span>
+              <button class="transit-chip active" data-mode="all" onclick="app.setTransitViewMode('all')">전체</button>
+              <button class="transit-chip" data-mode="car" onclick="app.setTransitViewMode('car')"><i class="fa-solid fa-car"></i> 자동차</button>
+              <button class="transit-chip" data-mode="transit" onclick="app.setTransitViewMode('transit')"><i class="fa-solid fa-bus"></i> 대중교통</button>
+              <button class="transit-chip" data-mode="walk" onclick="app.setTransitViewMode('walk')"><i class="fa-solid fa-person-walking"></i> 도보</button>
             </div>
 
             <div class="spots-timeline-list" id="spots-timeline-list"></div>

@@ -18,6 +18,7 @@ let currentDay = 0; // 0 = 전체 일정, 1 = Day 1, 2 = Day 2...
 let currentFilter = 'all'; // 'all' | 'visited' | 'wishlist'
 let searchQuery = '';
 let currentSort = 'newest';
+let transitViewMode = 'all'; // 'all' | 'car' | 'transit' | 'walk'
 
 let markersMap = {}; // id -> L.marker
 let polylinesList = []; // Leaflet Polyline 레이어들
@@ -406,6 +407,105 @@ function renderMap() {
   renderTripsOverviewMap();
 }
 
+// ==========================================
+// 4-1. 거리, 이동시간(차량/대중교통/도보), 길찾기 & 가계부 유틸리티
+// ==========================================
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return 0;
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function calculateTravelTimes(distKm) {
+  const realDist = distKm * 1.32; // 실제 도로 곡률 계수
+
+  // 1) 자동차: 시속 32km/h 기준
+  const carMins = Math.max(2, Math.round((realDist / 32) * 60));
+
+  // 2) 대중교통: 대기/환승 6분 + 시속 23km/h 기준
+  const transitMins = Math.max(6, Math.round(6 + (realDist / 23) * 60));
+
+  // 3) 도보: 시속 4.5km/h 기준
+  const rawWalkMins = Math.round((distKm * 1.25 / 4.5) * 60);
+  let walkText = `${rawWalkMins}분`;
+  if (rawWalkMins > 120) walkText = '2시간+';
+  else if (rawWalkMins > 60) walkText = `${Math.floor(rawWalkMins / 60)}시간 ${rawWalkMins % 60}분`;
+
+  return {
+    car: carMins,
+    transit: transitMins,
+    walk: walkText,
+    rawWalkMins
+  };
+}
+
+function createDirectionsUrl(lat, lng) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=transit`;
+}
+
+function createBetweenDirectionsUrl(lat1, lng1, lat2, lng2, mode = 'transit') {
+  return `https://www.google.com/maps/dir/?api=1&origin=${lat1},${lng1}&destination=${lat2},${lng2}&travelmode=${mode}`;
+}
+
+function setTransitViewMode(mode) {
+  transitViewMode = mode;
+  document.querySelectorAll('.transit-chip').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.mode === mode);
+  });
+  renderSpotsTimeline();
+}
+
+function renderBudgetSummary(trip, targetDay) {
+  const amountEl = document.getElementById('budget-total-amount');
+  const catBarsEl = document.getElementById('budget-cat-bars');
+  if (!amountEl || !catBarsEl) return;
+
+  const spots = trip.spots || [];
+  const relevantSpots = targetDay === 0 ? spots : spots.filter(s => s.day === targetDay);
+
+  let totalAmount = 0;
+  const catTotals = {};
+
+  relevantSpots.forEach(s => {
+    if (!s.cost) return;
+    const cleanNum = s.cost.replace(/[^0-9]/g, '');
+    if (cleanNum) {
+      const num = parseInt(cleanNum, 10);
+      totalAmount += num;
+      const cat = s.category || 'custom';
+      catTotals[cat] = (catTotals[cat] || 0) + num;
+    }
+  });
+
+  amountEl.textContent = totalAmount > 0 ? `${totalAmount.toLocaleString()}원` : '0원';
+
+  if (totalAmount === 0) {
+    catBarsEl.innerHTML = '<span class="budget-tag" style="color:#94a3b8;">등록된 지출 비용이 없습니다</span>';
+    return;
+  }
+
+  let html = '';
+  Object.keys(catTotals).forEach(catKey => {
+    const amt = catTotals[catKey];
+    const catObj = CATEGORIES[catKey] || CATEGORIES.custom;
+    html += `
+      <span class="budget-tag" style="border-left: 3px solid ${catObj.color};">
+        <i class="fa-solid ${catObj.icon}" style="color:${catObj.color}; margin-right:3px;"></i>
+        ${catObj.name}: ${amt.toLocaleString()}원
+      </span>
+    `;
+  });
+
+  catBarsEl.innerHTML = html;
+}
+
 // 특정 여행의 상세 스팟과 일자별 동선 선 렌더링
 function renderTripDetailMap() {
   const trip = trips.find(t => t.id === currentTripId);
@@ -474,6 +574,9 @@ function renderTripDetailMap() {
         ${spot.time ? `<div style="font-size:12px; color:#2563eb; margin-bottom:2px;"><i class="fa-regular fa-clock"></i> ${escapeHtml(spot.time)}</div>` : ''}
         ${spot.cost ? `<div style="font-size:12px; color:#059669; margin-bottom:4px;"><i class="fa-solid fa-coins"></i> ${escapeHtml(spot.cost)}</div>` : ''}
         ${spot.notes ? `<p style="font-size:12px; color:#475569; margin:4px 0 8px 0; line-height:1.4;">${escapeHtml(spot.notes)}</p>` : ''}
+        <a href="${createDirectionsUrl(spot.lat, spot.lng)}" target="_blank" class="btn-directions-link">
+          <i class="fa-solid fa-diamond-turn-right"></i> 구글맵 길찾기 바로가기
+        </a>
         <div style="display:flex; gap:6px; margin-top:6px;">
           <button class="btn btn-outline btn-sm" style="flex:1;" onclick="app.openEditSpotModal('${trip.id}', '${spot.id}')">수정</button>
           <button class="btn btn-danger-outline btn-sm" style="flex:1;" onclick="app.deleteSpot('${trip.id}', '${spot.id}')">삭제</button>
@@ -723,6 +826,9 @@ function renderSpotsTimeline() {
     <span class="day-spots-count">${filteredSpots.length}개 장소</span>
   `;
 
+  // 가계부 요약 갱신
+  renderBudgetSummary(trip, currentDay);
+
   if (filteredSpots.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
@@ -740,12 +846,44 @@ function renderSpotsTimeline() {
     return (a.order || 0) - (b.order || 0);
   });
 
-  container.innerHTML = filteredSpots.map((spot, idx) => {
+  let timelineHtml = '';
+
+  filteredSpots.forEach((spot, idx) => {
     const cat = CATEGORIES[spot.category] || CATEGORIES.custom;
     const catClass = spot.category || 'custom';
     const catName = spot.category === 'custom' && spot.customCategoryName ? spot.customCategoryName : cat.name;
 
-    return `
+    // 이전 스팟과의 거리 및 이동 시간 커넥터 삽입 (같은 날짜의 2번째 스팟부터)
+    if (idx > 0 && filteredSpots[idx - 1].day === spot.day) {
+      const prevSpot = filteredSpots[idx - 1];
+      const distKm = calculateDistanceKm(prevSpot.lat, prevSpot.lng, spot.lat, spot.lng);
+      const times = calculateTravelTimes(distKm);
+      const distFormatted = distKm < 1 ? `${Math.round(distKm * 1000)}m` : `${distKm.toFixed(1)}km`;
+
+      const showCar = transitViewMode === 'all' || transitViewMode === 'car';
+      const showTransit = transitViewMode === 'all' || transitViewMode === 'transit';
+      const showWalk = transitViewMode === 'all' || transitViewMode === 'walk';
+
+      const directionsUrl = createBetweenDirectionsUrl(prevSpot.lat, prevSpot.lng, spot.lat, spot.lng);
+
+      timelineHtml += `
+        <div class="timeline-route-connector">
+          <div class="route-info-left">
+            <span class="route-distance-chip"><i class="fa-solid fa-arrows-left-right"></i> ${distFormatted}</span>
+            <div class="route-time-chips">
+              ${showCar ? `<span class="route-time-badge car" title="자동차 이동"><i class="fa-solid fa-car"></i> 약 ${times.car}분</span>` : ''}
+              ${showTransit ? `<span class="route-time-badge transit" title="대중교통 이동"><i class="fa-solid fa-bus"></i> 약 ${times.transit}분</span>` : ''}
+              ${showWalk ? `<span class="route-time-badge walk" title="도보 이동"><i class="fa-solid fa-person-walking"></i> ${times.walk}</span>` : ''}
+            </div>
+          </div>
+          <a href="${directionsUrl}" target="_blank" class="btn-open-directions" title="구글 지도에서 실시간 경로 길찾기">
+            길찾기 <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+      `;
+    }
+
+    timelineHtml += `
       <div class="spot-timeline-card" id="spot-card-${spot.id}">
         <div class="spot-order-pin ${catClass}" title="${catName}">
           ${spot.order || (idx + 1)}
@@ -773,7 +911,9 @@ function renderSpotsTimeline() {
         </div>
       </div>
     `;
-  }).join('');
+  });
+
+  container.innerHTML = timelineHtml;
 }
 
 function focusSpot(spotId) {
@@ -1812,6 +1952,7 @@ window.app = {
   executeSpotGeocodeSearch,
   selectSpotGeocode,
   resetToHome: exitTripView,
+  setTransitViewMode,
   // 모바일 전용
   setMobileActiveTab,
   toggleMobileView,
