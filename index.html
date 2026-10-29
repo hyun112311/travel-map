@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#ffffff">
+  <title>내 손안의 세계여행 - Travel Log & Trip Planner</title>
+  
+  <!-- Pretendard Font -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" class="app-layout">
+    
+    <!-- 상단 헤더 (모바일 반응형) -->
+    <header class="app-header">
+      <div class="logo-area" onclick="app.resetToHome()" style="cursor: pointer;">
+        <div class="logo-icon">🌍</div>
+        <div class="logo-text">
+          <h1>My Travel Log</h1>
+          <span class="subtitle">세계 여행 지도 & 일정 플래너</span>
+        </div>
+      </div>
+
+      <!-- 상단 통계 뱃지 (데스크탑/태블릿) -->
+      <div class="stats-bar">
+        <div class="stat-badge all active" data-filter="all" id="badge-all">
+          <i class="fa-solid fa-map-location-dot"></i>
+          <span>전체 <strong id="stat-all-count">0</strong></span>
+        </div>
+        <div class="stat-badge visited" data-filter="visited" id="badge-visited">
+          <i class="fa-solid fa-plane-arrival"></i>
+          <span>다녀온 곳 <strong id="stat-visited-count">0</strong></span>
+        </div>
+        <div class="stat-badge wishlist" data-filter="wishlist" id="badge-wishlist">
+          <i class="fa-solid fa-compass"></i>
+          <span>가고 싶은 곳 <strong id="stat-wishlist-count">0</strong></span>
+        </div>
+      </div>
+
+      <!-- 상단 액션 버튼들 (데스크탑) -->
+      <div class="header-actions desktop-only">
+        <button class="btn btn-outline" id="btn-sample-data" title="예시 여행 코스 및 장소 불러오기">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>예시 불러오기</span>
+        </button>
+        <button class="btn btn-outline" id="btn-export-data" title="데이터 백업 (JSON 파일로 저장)">
+          <i class="fa-solid fa-file-export"></i>
+          <span>내보내기</span>
+        </button>
+        <label class="btn btn-outline file-import-label" title="저장된 JSON 백업 파일 불러오기">
+          <i class="fa-solid fa-file-import"></i>
+          <span>불러오기</span>
+          <input type="file" id="input-import-data" accept=".json" style="display: none;">
+        </label>
+        
+        <button class="btn btn-primary" id="btn-open-add-trip" title="새 여행 일정/코스 만들기">
+          <i class="fa-solid fa-route"></i>
+          <span>새 여행 만들기</span>
+        </button>
+        <button class="btn btn-secondary" id="btn-open-add-modal" title="단일 관심 장소 핀 추가">
+          <i class="fa-solid fa-location-dot"></i>
+          <span>단일 장소 핀</span>
+        </button>
+      </div>
+
+      <!-- 모바일 헤더 우측 간편 액션 버튼 -->
+      <div class="header-actions mobile-only">
+        <button class="btn-icon mobile-header-btn" onclick="app.openMobileAddMenu()" title="추가 메뉴">
+          <i class="fa-solid fa-circle-plus"></i>
+        </button>
+        <button class="btn-icon mobile-header-btn" onclick="app.openMobileMoreModal()" title="메뉴 더보기">
+          <i class="fa-solid fa-ellipsis-vertical"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- 메인 컨텐츠 영역 (사이드바 + 지도) -->
+    <div class="main-container">
+      
+      <!-- 좌측 사이드바 (모바일에서는 슬라이딩 시트/전체화면) -->
+      <aside class="sidebar" id="sidebar">
+        
+        <!-- =================== 1. 기본 목록 뷰 (VIEW: LIST) =================== -->
+        <div id="sidebar-view-list" class="sidebar-subview">
+          <div class="sidebar-header">
+            <!-- 뷰 모드 탭 (여행 코스 vs 단일 핀) -->
+            <div class="main-mode-tabs">
+              <button class="mode-tab-btn active" id="tab-mode-trips" onclick="app.setMainMode('trips')">
+                <i class="fa-solid fa-suitcase-rolling"></i> 여행 코스 (<span id="count-trips">0</span>)
+              </button>
+              <button class="mode-tab-btn" id="tab-mode-places" onclick="app.setMainMode('places')">
+                <i class="fa-solid fa-map-pin"></i> 관심 장소 (<span id="count-places">0</span>)
+              </button>
+            </div>
+
+            <!-- 검색창 -->
+            <div class="search-box">
+              <i class="fa-solid fa-magnifying-glass search-icon"></i>
+              <input type="text" id="input-search" placeholder="여행지, 코스, 도시, 태그 검색...">
+              <button id="btn-clear-search" class="clear-btn" style="display: none;">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            
+            <!-- 필터 및 정렬 -->
+            <div class="filter-sort-controls">
+              <div class="filter-tabs">
+                <button class="tab-btn active" data-filter="all">전체</button>
+                <button class="tab-btn" data-filter="visited">다녀온 곳</button>
+                <button class="tab-btn" data-filter="wishlist">갈 예정</button>
+              </div>
+              <div class="sort-select-wrapper">
+                <select id="select-sort">
+                  <option value="newest">최신 등록순</option>
+                  <option value="oldest">오래된 순</option>
+                  <option value="date-desc">여행 일자순</option>
+                  <option value="name">이름순</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 여행 코스 목록 영역 -->
+          <div class="items-list-container" id="trips-list-container">
+            <div class="trip-list" id="trip-list"></div>
+          </div>
+
+          <!-- 단일 장소 목록 영역 -->
+          <div class="items-list-container" id="places-list-container" style="display: none;">
+            <div class="place-list" id="place-list"></div>
+          </div>
+        </div>
+
+        <!-- =================== 2. 여행 상세 일정 뷰 (VIEW: TRIP TIMELINE) =================== -->
+        <div id="sidebar-view-trip" class="sidebar-subview" style="display: none;">
+          <div class="trip-detail-header">
+            <button class="btn-back-to-list" onclick="app.exitTripView()" title="전체 목록으로 돌아가기">
+              <i class="fa-solid fa-arrow-left"></i> 목록으로
+            </button>
+            <div class="trip-header-main">
+              <div class="trip-header-badge-row">
+                <span class="badge-type" id="trip-detail-badge"></span>
+                <div class="trip-header-actions">
+                  <button class="btn-icon" onclick="app.openEditTripModal()" title="여행 정보 수정"><i class="fa-solid fa-pen"></i></button>
+                  <button class="btn-icon danger" onclick="app.confirmDeleteTrip()" title="여행 삭제"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+              </div>
+              <h2 class="trip-detail-title" id="trip-detail-title">여행 제목</h2>
+              <div class="trip-detail-meta" id="trip-detail-meta">
+                <span><i class="fa-regular fa-calendar"></i> <span id="trip-detail-dates">일정</span></span>
+                <span><i class="fa-solid fa-location-dot"></i> <span id="trip-detail-loc">도시</span></span>
+              </div>
+            </div>
+
+            <!-- Day 탭 목록 (Day 1, Day 2, Day 3... + Day 추가) -->
+            <div class="day-tabs-wrapper">
+              <div class="day-tabs-scroll" id="day-tabs-container"></div>
+              <button class="btn-add-day" id="btn-add-day" title="새로운 Day 추가" onclick="app.addNewDayToTrip()">
+                <i class="fa-solid fa-plus"></i> Day 추가
+              </button>
+            </div>
+          </div>
+
+          <!-- 해당 Day의 스팟 타임라인 리스트 -->
+          <div class="trip-spots-timeline-container">
+            <div class="day-summary-banner" id="day-summary-banner">
+              <span id="current-day-label">Day 1</span>
+              <span class="day-spots-count" id="current-day-spots-count">0개 장소</span>
+            </div>
+
+            <div class="spots-timeline-list" id="spots-timeline-list"></div>
+
+            <!-- 스팟 추가 버튼 -->
+            <div class="add-spot-bottom-bar">
+              <button class="btn btn-primary btn-block" onclick="app.openAddSpotModal()">
+                <i class="fa-solid fa-plus"></i> 이 일정에 장소(스팟) 추가
+              </button>
+              <small class="tip-text">💡 지도의 아무 곳이나 터치해도 바로 이 날짜에 장소가 추가됩니다!</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- 사이드바 접기/펼치기 토글 버튼 (데스크탑) -->
+        <button class="sidebar-toggle-btn desktop-only" id="btn-toggle-sidebar" title="사이드바 접기/펼치기">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+      </aside>
+
+      <!-- 우측 지도 영역 -->
+      <main class="map-wrapper">
+        <div id="map"></div>
+
+        <!-- 지도 위 플로팅 컨트롤 -->
+        <div class="map-floating-controls">
+          <div class="map-theme-selector">
+            <button class="map-ctrl-btn active" id="btn-theme-google-roads" title="최신 구글 지도 (Google Maps 표준)">
+              <i class="fa-brands fa-google"></i>
+            </button>
+            <button class="map-ctrl-btn" id="btn-theme-google-hybrid" title="구글 위성 & 도로 라벨 (Google Hybrid)">
+              <i class="fa-solid fa-satellite"></i>
+            </button>
+            <button class="map-ctrl-btn" id="btn-theme-google-terrain" title="구글 지형 지도 (Google Terrain)">
+              <i class="fa-solid fa-mountain"></i>
+            </button>
+            <button class="map-ctrl-btn" id="btn-theme-street" title="Esri 세계 거리 지도">
+              <i class="fa-solid fa-map"></i>
+            </button>
+          </div>
+          
+          <div class="map-action-buttons">
+            <button class="map-ctrl-btn" id="btn-reset-view" title="전세계 한눈에 보기">
+              <i class="fa-solid fa-globe"></i>
+            </button>
+            <button class="map-ctrl-btn" id="btn-my-location" title="내 현재 위치">
+              <i class="fa-solid fa-location-crosshairs"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- 여행 코스 모드 시 상단 플로팅 배너 -->
+        <div class="trip-active-banner" id="trip-active-banner" style="display: none;">
+          <div class="trip-active-info">
+            <span class="active-dot"></span>
+            <span id="active-banner-title">여행 코스 보기 중</span>
+            <span class="active-banner-day" id="active-banner-day">[전체 일정]</span>
+          </div>
+          <button class="btn btn-sm btn-outline-white" onclick="app.exitTripView()">
+            목록으로
+          </button>
+        </div>
+
+        <!-- 모바일 전용 플로팅 토글 버튼 (지도 ↔ 목록 전환) -->
+        <button class="floating-mobile-view-toggle mobile-only" id="btn-mobile-view-toggle" onclick="app.toggleMobileView()">
+          <i class="fa-solid fa-list-ul"></i>
+          <span id="mobile-view-toggle-text">목록 보기</span>
+        </button>
+
+        <!-- 지도 안내 툴팁 배너 (데스크탑) -->
+        <div class="map-guide-banner desktop-only" id="map-guide-banner">
+          <span>💡 지도의 아무 곳이나 클릭하면 바로 해당 위치에 여행지/스팟을 등록할 수 있습니다!</span>
+          <button class="close-guide-btn" id="btn-close-guide">&times;</button>
+        </div>
+      </main>
+    </div>
+
+    <!-- ========================================================
+         모바일 하단 내비게이션 바 (Mobile Bottom Navigation Bar)
+         ======================================================== -->
+    <nav class="mobile-bottom-nav mobile-only">
+      <button class="nav-item active" id="nav-item-map" onclick="app.setMobileActiveTab('map')">
+        <i class="fa-solid fa-map"></i>
+        <span>지도</span>
+      </button>
+      <button class="nav-item" id="nav-item-list" onclick="app.setMobileActiveTab('list')">
+        <i class="fa-solid fa-suitcase-rolling"></i>
+        <span>코스/일정</span>
+      </button>
+      <button class="nav-item nav-action-btn" onclick="app.openMobileAddMenu()">
+        <div class="nav-circle-add">
+          <i class="fa-solid fa-plus"></i>
+        </div>
+        <span>추가</span>
+      </button>
+      <button class="nav-item" id="nav-item-places" onclick="app.setMobilePlacesTab()">
+        <i class="fa-solid fa-location-dot"></i>
+        <span>관심장소</span>
+      </button>
+      <button class="nav-item" onclick="app.openMobileMoreModal()">
+        <i class="fa-solid fa-ellipsis"></i>
+        <span>더보기</span>
+      </button>
+    </nav>
+
+    <!-- 모바일 간편 추가 액션 시트 -->
+    <div class="modal-overlay" id="modal-mobile-add-menu" style="display: none;" onclick="app.closeModal('modal-mobile-add-menu')">
+      <div class="mobile-action-sheet" onclick="event.stopPropagation()">
+        <div class="sheet-handle"></div>
+        <h3 class="sheet-title">무엇을 추가할까요?</h3>
+        <div class="sheet-buttons-grid">
+          <button class="sheet-action-btn primary" onclick="app.closeModal('modal-mobile-add-menu'); app.openAddTripModal();">
+            <div class="sheet-icon-box"><i class="fa-solid fa-route"></i></div>
+            <div class="sheet-btn-text">
+              <strong>새 여행 코스 만들기</strong>
+              <span>일자별(Day 1, Day 2...) 세부 일정 계획</span>
+            </div>
+          </button>
+          <button class="sheet-action-btn secondary" onclick="app.closeModal('modal-mobile-add-menu'); app.openAddPlaceModal();">
+            <div class="sheet-icon-box"><i class="fa-solid fa-location-dot"></i></div>
+            <div class="sheet-btn-text">
+              <strong>단일 관심 장소 핀</strong>
+              <span>가고 싶은 스팟 버킷리스트 1개 등록</span>
+            </div>
+          </button>
+        </div>
+        <button class="btn btn-outline btn-block" onclick="app.closeModal('modal-mobile-add-menu')">닫기</button>
+      </div>
+    </div>
+
+    <!-- 모바일 더보기(백업/예시/테마) 시트 -->
+    <div class="modal-overlay" id="modal-mobile-more" style="display: none;" onclick="app.closeModal('modal-mobile-more')">
+      <div class="mobile-action-sheet" onclick="event.stopPropagation()">
+        <div class="sheet-handle"></div>
+        <h3 class="sheet-title">설정 & 데이터 관리</h3>
+        <div class="more-menu-list">
+          <button class="more-menu-item" onclick="app.closeModal('modal-mobile-more'); document.getElementById('btn-sample-data').click();">
+            <i class="fa-solid fa-wand-magic-sparkles" style="color: #8b5cf6;"></i>
+            <span>예시 여행 데이터 불러오기</span>
+          </button>
+          <button class="more-menu-item" onclick="app.closeModal('modal-mobile-more'); document.getElementById('btn-export-data').click();">
+            <i class="fa-solid fa-file-export" style="color: #10b981;"></i>
+            <span>여행 데이터 백업 (JSON 내보내기)</span>
+          </button>
+          <label class="more-menu-item" style="cursor: pointer;">
+            <i class="fa-solid fa-file-import" style="color: #3b82f6;"></i>
+            <span>저장된 백업 파일 불러오기</span>
+            <input type="file" onchange="app.closeModal('modal-mobile-more'); document.getElementById('input-import-data').files = this.files; document.getElementById('input-import-data').dispatchEvent(new Event('change'));" accept=".json" style="display: none;">
+          </label>
+        </div>
+        <button class="btn btn-outline btn-block" style="margin-top: 10px;" onclick="app.closeModal('modal-mobile-more')">닫기</button>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         모달 1: 새 여행(Trip) 생성 / 수정 모달
+         ======================================================== -->
+    <div class="modal-overlay" id="modal-trip" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 id="modal-trip-title">새 여행 만들기</h2>
+          <button class="modal-close-btn" onclick="app.closeModal('modal-trip')">&times;</button>
+        </div>
+
+        <form id="form-trip" class="place-form">
+          <input type="hidden" id="trip-id">
+
+          <!-- 여행 구분 선택 (다녀온 여행 vs 계획 중인 여행) -->
+          <div class="form-group">
+            <label class="form-label">여행 구분 <span class="required">*</span></label>
+            <div class="type-toggle-group">
+              <label class="type-toggle-option visited">
+                <input type="radio" name="tripType" value="visited" checked>
+                <div class="type-content">
+                  <i class="fa-solid fa-plane-arrival"></i>
+                  <div>
+                    <strong>다녀온 여행</strong>
+                    <span>실제 일정 & 방문 기록/후기</span>
+                  </div>
+                </div>
+              </label>
+
+              <label class="type-toggle-option wishlist">
+                <input type="radio" name="tripType" value="wishlist">
+                <div class="type-content">
+                  <i class="fa-solid fa-compass"></i>
+                  <div>
+                    <strong>갈 예정인 여행</strong>
+                    <span>향후 여행 코스 & 버킷리스트</span>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- 여행 제목 & 주요 도시/국가 -->
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="trip-name" class="form-label">여행 제목 <span class="required">*</span></label>
+              <input type="text" id="trip-name" placeholder="예: 2박 3일 서울 감성 투어" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="trip-destination" class="form-label">대표 도시/국가 <span class="required">*</span></label>
+              <input type="text" id="trip-destination" placeholder="예: 대한민국 서울" required>
+            </div>
+          </div>
+
+          <!-- 여행 기간 -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="trip-start-date" class="form-label">여행 시작일</label>
+              <input type="date" id="trip-start-date">
+            </div>
+            <div class="form-group flex-1">
+              <label for="trip-end-date" class="form-label">여행 종료일</label>
+              <input type="date" id="trip-end-date">
+            </div>
+          </div>
+
+          <!-- 총 예산 / 비용 메모 -->
+          <div class="form-group">
+            <label for="trip-budget" class="form-label">총 예산 또는 총 지출</label>
+            <input type="text" id="trip-budget" placeholder="예: 약 45만원, 1500 USD">
+          </div>
+
+          <!-- 소개 및 총평 -->
+          <div class="form-group">
+            <label for="trip-description" class="form-label">여행 소개 및 한 줄 메모</label>
+            <textarea id="trip-description" rows="3" placeholder="이번 여행의 컨셉이나 총평을 적어보세요."></textarea>
+          </div>
+
+          <!-- 태그 -->
+          <div class="form-group">
+            <label for="trip-tags" class="form-label">태그 (쉼표로 구분)</label>
+            <input type="text" id="trip-tags" placeholder="예: 힐링, 우정여행, 미식, 인생샷">
+          </div>
+
+          <!-- 대표 사진 -->
+          <div class="form-group">
+            <label class="form-label">대표 사진 (선택)</label>
+            <div class="photo-upload-container">
+              <div class="photo-upload-tabs">
+                <label class="file-btn">
+                  <i class="fa-solid fa-image"></i> 사진 올리기
+                  <input type="file" id="input-trip-photo" accept="image/*" style="display: none;">
+                </label>
+                <span class="or-separator">또는</span>
+                <input type="url" id="input-trip-photo-url" placeholder="이미지 URL 직접 입력" class="url-input">
+              </div>
+              <div id="trip-photo-preview-box" class="photo-preview-box" style="display: none;">
+                <img id="img-trip-photo-preview" src="" alt="여행 사진">
+                <button type="button" class="btn-remove-photo" id="btn-remove-trip-photo">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" onclick="app.closeModal('modal-trip')">취소</button>
+            <button type="submit" class="btn btn-primary">
+              <i class="fa-solid fa-check"></i> 여행 저장하기
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         모달 2: 여행 내 세부 스팟(Spot) 추가 / 수정 모달
+         ======================================================== -->
+    <div class="modal-overlay" id="modal-spot" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 id="modal-spot-title">일정에 장소(스팟) 추가</h2>
+          <button class="modal-close-btn" onclick="app.closeModal('modal-spot')">&times;</button>
+        </div>
+
+        <form id="form-spot" class="place-form">
+          <input type="hidden" id="spot-id">
+          <input type="hidden" id="spot-lat">
+          <input type="hidden" id="spot-lng">
+
+          <!-- 일자 선택 및 카테고리 -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="spot-day" class="form-label">방문 일정 (Day) <span class="required">*</span></label>
+              <select id="spot-day" required></select>
+            </div>
+            
+            <div class="form-group flex-1">
+              <label for="spot-category" class="form-label">장소 유형 (카테고리) <span class="required">*</span></label>
+              <select id="spot-category" onchange="app.handleCategoryChange(this.value)">
+                <option value="sightseeing">🏛️ 관광 / 명소</option>
+                <option value="hotel">🏨 숙소 / 호텔</option>
+                <option value="restaurant">🍽️ 맛집 / 카페</option>
+                <option value="shopping">🛍️ 쇼핑 / 액티비티</option>
+                <option value="transport">✈️ 교통 / 이동</option>
+                <option value="custom">➕ 직접 입력 (커스텀)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 커스텀 카테고리 입력란 -->
+          <div class="form-group" id="spot-custom-category-group" style="display: none;">
+            <label for="spot-custom-category" class="form-label">커스텀 카테고리 이름</label>
+            <input type="text" id="spot-custom-category" placeholder="예: ☕ 카페, 📸 포토존, 🎪 축제">
+          </div>
+
+          <!-- 장소 이름 & 시간/비용 -->
+          <div class="form-group">
+            <label for="spot-name" class="form-label">장소명 / 명소 이름 <span class="required">*</span></label>
+            <input type="text" id="spot-name" placeholder="예: 광화문 광장, 신라호텔, 우진해장국" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="spot-time" class="form-label">방문 시간대</label>
+              <input type="time" id="spot-time">
+            </div>
+            <div class="form-group flex-1">
+              <label for="spot-cost" class="form-label">비용 / 가계부</label>
+              <input type="text" id="spot-cost" placeholder="예: 35,000원, 20달러">
+            </div>
+          </div>
+
+          <!-- 위치 검색 및 좌표 세팅 -->
+          <div class="form-group geocode-search-group">
+            <label class="form-label">지도 위치 설정</label>
+            <div class="geocode-input-wrap">
+              <input type="text" id="input-spot-geocode-search" placeholder="장소명 검색">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-spot-geocode-search" onclick="app.executeSpotGeocodeSearch()">
+                <i class="fa-solid fa-magnifying-glass"></i> 검색
+              </button>
+            </div>
+            <div id="spot-geocode-results" class="geocode-results-list" style="display: none;"></div>
+            <small class="form-hint" id="spot-coords-hint">
+              <i class="fa-solid fa-location-dot"></i> 선택된 좌표: <span id="display-spot-coords">지도 터치 또는 검색</span>
+            </small>
+          </div>
+
+          <!-- 메모 / 후기 -->
+          <div class="form-group">
+            <label for="spot-notes" class="form-label">일정 메모 & 꿀팁 / 후기</label>
+            <textarea id="spot-notes" rows="3" placeholder="예약 번호, 꼭 먹을 메뉴, 관람 팁 등을 적어두세요."></textarea>
+          </div>
+
+          <!-- 사진 -->
+          <div class="form-group">
+            <label class="form-label">사진 첨부 (선택)</label>
+            <div class="photo-upload-container">
+              <div class="photo-upload-tabs">
+                <label class="file-btn">
+                  <i class="fa-solid fa-image"></i> 사진 올리기
+                  <input type="file" id="input-spot-photo" accept="image/*" style="display: none;">
+                </label>
+                <span class="or-separator">또는</span>
+                <input type="url" id="input-spot-photo-url" placeholder="이미지 URL" class="url-input">
+              </div>
+              <div id="spot-photo-preview-box" class="photo-preview-box" style="display: none;">
+                <img id="img-spot-photo-preview" src="" alt="스팟 사진">
+                <button type="button" class="btn-remove-photo" id="btn-remove-spot-photo">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" onclick="app.closeModal('modal-spot')">취소</button>
+            <button type="submit" class="btn btn-primary">
+              <i class="fa-solid fa-check"></i> 장소 추가하기
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         모달 3: 기존 단일 관심 장소(Place) 추가/수정 모달
+         ======================================================== -->
+    <div class="modal-overlay" id="modal-place" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 id="modal-title">단일 관심 장소 핀 등록</h2>
+          <button class="modal-close-btn" id="btn-close-modal">&times;</button>
+        </div>
+
+        <form id="form-place" class="place-form">
+          <input type="hidden" id="place-id">
+          <input type="hidden" id="place-lat">
+          <input type="hidden" id="place-lng">
+
+          <!-- 여행 구분 선택 -->
+          <div class="form-group">
+            <label class="form-label">여행 구분 <span class="required">*</span></label>
+            <div class="type-toggle-group">
+              <label class="type-toggle-option visited">
+                <input type="radio" name="placeType" value="visited" checked>
+                <div class="type-content">
+                  <i class="fa-solid fa-plane-arrival"></i>
+                  <div>
+                    <strong>다녀온 곳</strong>
+                    <span>소중한 추억과 후기</span>
+                  </div>
+                </div>
+              </label>
+
+              <label class="type-toggle-option wishlist">
+                <input type="radio" name="placeType" value="wishlist">
+                <div class="type-content">
+                  <i class="fa-solid fa-compass"></i>
+                  <div>
+                    <strong>가고 싶은 곳</strong>
+                    <span>버킷리스트</span>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="place-name" class="form-label">장소 이름 <span class="required">*</span></label>
+              <input type="text" id="place-name" placeholder="예: 파리 에펠탑, 발리 우붓" required>
+            </div>
+            <div class="form-group flex-1">
+              <label for="place-country" class="form-label">도시 / 국가</label>
+              <input type="text" id="place-country" placeholder="예: 프랑스 파리">
+            </div>
+          </div>
+
+          <div class="form-group geocode-search-group">
+            <div class="geocode-input-wrap">
+              <input type="text" id="input-geocode-search" placeholder="도시/명소 검색">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-geocode-search">
+                <i class="fa-solid fa-magnifying-glass"></i> 검색
+              </button>
+            </div>
+            <div id="geocode-results" class="geocode-results-list" style="display: none;"></div>
+            <small class="form-hint" id="location-coords-hint">
+              <i class="fa-solid fa-location-dot"></i> 선택된 좌표: <span id="display-coords">지도 터치</span>
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label for="place-tags" class="form-label">태그 (쉼표로 구분)</label>
+            <input type="text" id="place-tags" placeholder="예: 유럽, 배낭여행, 힐링">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">대표 사진 (선택)</label>
+            <div class="photo-upload-container">
+              <div class="photo-upload-tabs">
+                <label class="file-btn">
+                  <i class="fa-solid fa-image"></i> 사진 파일 올리기
+                  <input type="file" id="input-place-photo" accept="image/*" style="display: none;">
+                </label>
+                <span class="or-separator">또는</span>
+                <input type="url" id="input-place-photo-url" placeholder="이미지 URL 직접 입력" class="url-input">
+              </div>
+              <div id="photo-preview-box" class="photo-preview-box" style="display: none;">
+                <img id="img-photo-preview" src="" alt="사진 미리보기">
+                <button type="button" class="btn-remove-photo" id="btn-remove-photo" title="사진 삭제">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="btn-cancel-modal">취소</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-place">
+              <i class="fa-solid fa-check"></i> 저장하기
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 토스트 알림 컨테이너 -->
+    <div id="toast-container" class="toast-container"></div>
+
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <!-- Custom JS -->
+  <script src="app.js"></script>
+</body>
+</html>
